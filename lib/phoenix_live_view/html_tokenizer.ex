@@ -98,9 +98,9 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
     handle_doctype(rest, {line, offset}, column + 9, ["<!DOCTYPE" | buffer], acc, state)
   end
 
-  defp handle_text("<!--" <> rest, {line, offset}, column, buffer, acc, state) do
+  defp handle_text("<!--" <> rest, {line, _offset}, column, buffer, acc, state) do
     state = update_in(state.context, &[:comment_start | &1])
-    handle_comment(rest, {line, offset}, column + 4, ["<!--" | buffer], acc, state)
+    handle_comment(rest, line, column + 4, ["<!--" | buffer], acc, state)
   end
 
   defp handle_text("</" <> rest, {line, offset}, column, buffer, acc, state) do
@@ -117,8 +117,8 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
     handle_text(rest, {line, offset}, column + 1, [char_or_bin(c) | buffer], acc, state)
   end
 
-  defp handle_text(<<>>, {line, offset}, column, buffer, acc, state) do
-    ok(text_to_acc(buffer, acc, {line, offset}, column, state.context), :text)
+  defp handle_text(<<>>, {line, _offset}, column, buffer, acc, state) do
+    ok(text_to_acc(buffer, acc, line, column, state.context), :text)
   end
 
   ## handle_doctype
@@ -155,13 +155,13 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
 
   ## handle_script
 
-  defp handle_script("</script>" <> rest, line, column, buffer, acc, state) do
+  defp handle_script("</script>" <> rest, {line, offset}, column, buffer, acc, state) do
     acc = [
       {:tag_close, "script", %{line: line, column: column}}
       | text_to_acc(buffer, acc, line, column, [])
     ]
 
-    handle_text(rest, line, column + 9, [], acc, state)
+    handle_text(rest, {line, offset}, column + 9, [], acc, state)
   end
 
   defp handle_script("\r\n" <> rest, {line, offset}, column, buffer, acc, state) do
@@ -190,8 +190,8 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
     handle_script(rest, {line, offset}, column + 1, [char_or_bin(c) | buffer], acc, state)
   end
 
-  defp handle_script(<<>>, {line, offset}, column, buffer, acc, _state) do
-    ok(text_to_acc(buffer, acc, {line, offset}, column, []), :script)
+  defp handle_script(<<>>, {line, _offset}, column, buffer, acc, _state) do
+    ok(text_to_acc(buffer, acc, line, column, []), :script)
   end
 
   ## handle_style
@@ -247,7 +247,7 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
 
   defp handle_comment("-->" <> rest, line, column, buffer, acc, state) do
     state = update_in(state.context, &[:comment_end | &1])
-    handle_text(rest, line, column + 3, ["-->" | buffer], acc, state)
+    handle_text(rest, {line, nil}, column + 3, ["-->" | buffer], acc, state)
   end
 
   defp handle_comment(<<c::utf8, rest::binary>>, line, column, buffer, acc, state) do
@@ -273,11 +273,11 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
 
   ## handle_tag_close
 
-  defp handle_tag_close(text, line, column, acc, state) do
+  defp handle_tag_close(text, {line, offset}, column, acc, state) do
     case handle_tag_name(text, column, []) do
       {:ok, name, new_column, ">" <> rest} ->
         acc = [{:tag_close, name, %{line: line, column: column - 2}} | acc]
-        handle_text(rest, line, new_column + 1, [], acc, state)
+        handle_text(rest, {line, offset}, new_column + 1, [], acc, state)
 
       {:ok, _, new_column, _} ->
         message = "expected closing `>`"
@@ -333,34 +333,34 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
     )
   end
 
-  defp handle_maybe_tag_open_end(<<c::utf8, rest::binary>>, line, column, acc, state)
+  defp handle_maybe_tag_open_end(<<c::utf8, rest::binary>>, {line, offset}, column, acc, state)
        when c in @space_chars do
-    handle_maybe_tag_open_end(rest, line, column + 1, acc, state)
+    handle_maybe_tag_open_end(rest, {line, offset}, column + 1, acc, state)
   end
 
-  defp handle_maybe_tag_open_end("/>" <> rest, line, column, acc, state) do
+  defp handle_maybe_tag_open_end("/>" <> rest, {line, offset}, column, acc, state) do
     acc = reverse_attrs(acc)
-    handle_text(rest, line, column + 2, [], put_self_close(acc), state)
+    handle_text(rest, {line, offset}, column + 2, [], put_self_close(acc), state)
   end
 
-  defp handle_maybe_tag_open_end(">" <> rest, line, column, acc, state) do
+  defp handle_maybe_tag_open_end(">" <> rest, {line, offset}, column, acc, state) do
     case reverse_attrs(acc) do
       [{:tag_open, "script", _, _} | _] = acc ->
-        handle_script(rest, line, column + 1, [], acc, state)
+        handle_script(rest, {line, offset}, column + 1, [], acc, state)
 
       [{:tag_open, "style", _, _} | _] = acc ->
-        handle_style(rest, line, column + 1, [], acc, state)
+        handle_style(rest, {line, offset}, column + 1, [], acc, state)
 
       acc ->
-        handle_text(rest, line, column + 1, [], acc, state)
+        handle_text(rest, {line, offset}, column + 1, [], acc, state)
     end
   end
 
-  defp handle_maybe_tag_open_end("{" <> rest, line, column, acc, state) do
-    handle_root_attribute(rest, line, column + 1, acc, state)
+  defp handle_maybe_tag_open_end("{" <> rest, {line, offset}, column, acc, state) do
+    handle_root_attribute(rest, {line, offset}, column + 1, acc, state)
   end
 
-  defp handle_maybe_tag_open_end(<<>>, line, column, _acc, state) do
+  defp handle_maybe_tag_open_end(<<>>, {line, _offset}, column, _acc, state) do
     message = ~S"""
     expected closing `>` or `/>`
 
@@ -408,12 +408,12 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
 
   ## handle_root_attribute
 
-  defp handle_root_attribute(text, line, column, acc, state) do
+  defp handle_root_attribute(text, {line, offset}, column, acc, state) do
     case handle_interpolation(text, line, column, [], state) do
       {:ok, value, new_line, new_column, rest, state} ->
         meta = %{line: line, column: column}
         acc = put_attr(acc, :root, meta, {:expr, value, meta})
-        handle_maybe_tag_open_end(rest, new_line, new_column, acc, state)
+        handle_maybe_tag_open_end(rest, {new_line, offset}, new_column, acc, state)
 
       {:error, message, line, column} ->
         raise ParseError, file: state.file, line: line, column: column, description: message
@@ -596,27 +596,15 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
 
   ## handle_interpolation
 
-  defp handle_interpolation("\r\n" <> rest, {line, offset}, column, buffer, state) do
-    handle_interpolation(
-      rest,
-      {line + 1, offset + column - state.column_offset + 2},
-      state.column_offset,
-      ["\r\n" | buffer],
-      state
-    )
+  defp handle_interpolation("\r\n" <> rest, line, _column, buffer, state) do
+    handle_interpolation(rest, line + 1, state.column_offset, ["\r\n" | buffer], state)
   end
 
-  defp handle_interpolation("\n" <> rest, {line, offset}, column, buffer, state) do
-    handle_interpolation(
-      rest,
-      {line + 1, offset + column - state.column_offset + 2},
-      state.column_offset,
-      ["\n" | buffer],
-      state
-    )
+  defp handle_interpolation("\n" <> rest, line, _column, buffer, state) do
+    handle_interpolation(rest, line + 1, state.column_offset, ["\n" | buffer], state)
   end
 
-  defp handle_interpolation("}" <> rest, line, {column, _offset}, buffer, %{braces: []} = state) do
+  defp handle_interpolation("}" <> rest, line, column, buffer, %{braces: []} = state) do
     value = buffer_to_string(buffer)
     {:ok, value, line, column + 1, rest, state}
   end
@@ -643,7 +631,7 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
     handle_interpolation(rest, line, column + 1, [char_or_bin(c) | buffer], state)
   end
 
-  defp handle_interpolation(<<>>, line, column, _buffer, _state) do
+  defp handle_interpolation(<<>>, {line, _offset}, column, _buffer, _state) do
     {:error, "expected closing `}` for expression", line, column}
   end
 
