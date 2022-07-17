@@ -247,7 +247,8 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
 
   defp handle_comment("-->" <> rest, line, column, buffer, acc, state) do
     state = update_in(state.context, &[:comment_end | &1])
-    handle_text(rest, {line, nil}, column + 3, ["-->" | buffer], acc, state)
+    # TODO: should we receive the offset here too?
+    handle_text(rest, {line, 0}, column + 3, ["-->" | buffer], acc, state)
   end
 
   defp handle_comment(<<c::utf8, rest::binary>>, line, column, buffer, acc, state) do
@@ -607,11 +608,11 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
 
   ## handle_attr_value_as_expr
 
-  defp handle_attr_value_as_expr(text, line, column, acc, %{braces: []} = state) do
+  defp handle_attr_value_as_expr(text, {line, offset}, column, acc, %{braces: []} = state) do
     case handle_interpolation(text, line, column, [], state) do
       {:ok, value, new_line, new_column, rest, state} ->
         acc = put_attr_value(acc, {:expr, value, %{line: line, column: column}})
-        handle_maybe_tag_open_end(rest, new_line, new_column, acc, state)
+        handle_maybe_tag_open_end(rest, {new_line, offset}, new_column, acc, state)
 
       {:error, message, line, column} ->
         raise ParseError, file: state.file, line: line, column: column, description: message
@@ -655,7 +656,7 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
     handle_interpolation(rest, line, column + 1, [char_or_bin(c) | buffer], state)
   end
 
-  defp handle_interpolation(<<>>, {line, _offset}, column, _buffer, _state) do
+  defp handle_interpolation(<<>>, line, column, _buffer, _state) do
     {:error, "expected closing `}` for expression", line, column}
   end
 
