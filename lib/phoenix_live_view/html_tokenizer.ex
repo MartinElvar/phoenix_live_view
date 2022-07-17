@@ -108,9 +108,9 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
     handle_tag_close(rest, {line, offset}, column + 2, text_to_acc, %{state | context: []})
   end
 
-  defp handle_text("<" <> rest, {line, _offset}, column, buffer, acc, state) do
+  defp handle_text("<" <> rest, {line, offset}, column, buffer, acc, state) do
     text_to_acc = text_to_acc(buffer, acc, line, column, state.context)
-    handle_tag_open(rest, line, column + 1, text_to_acc, %{state | context: []})
+    handle_tag_open(rest, {line, offset}, column + 1, text_to_acc, %{state | context: []})
   end
 
   defp handle_text(<<c::utf8, rest::binary>>, {line, offset}, column, buffer, acc, state) do
@@ -260,11 +260,11 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
 
   ## handle_tag_open
 
-  defp handle_tag_open(text, line, column, acc, state) do
+  defp handle_tag_open(text, {line, offset}, column, acc, state) do
     case handle_tag_name(text, column, []) do
       {:ok, name, new_column, rest} ->
         acc = [{:tag_open, name, [], %{line: line, column: column - 1}} | acc]
-        handle_maybe_tag_open_end(rest, line, new_column, acc, state)
+        handle_maybe_tag_open_end(rest, {line, offset}, new_column, acc, state)
 
       {:error, message} ->
         raise ParseError, file: state.file, line: line, column: column, description: message
@@ -389,17 +389,17 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
     raise ParseError, file: state.file, line: line, column: column, description: message
   end
 
-  defp handle_maybe_tag_open_end(text, line, column, acc, state) do
-    handle_attribute(text, line, column, acc, state)
+  defp handle_maybe_tag_open_end(text, {line, offset}, column, acc, state) do
+    handle_attribute(text, {line, offset}, column, acc, state)
   end
 
   ## handle_attribute
 
-  defp handle_attribute(text, line, column, acc, state) do
+  defp handle_attribute(text, {line, offset}, column, acc, state) do
     case handle_attr_name(text, column, []) do
       {:ok, name, new_column, rest} ->
         acc = put_attr(acc, name, %{line: line, column: column})
-        handle_maybe_attr_value(rest, line, new_column, acc, state)
+        handle_maybe_attr_value(rest, {line, offset}, new_column, acc, state)
 
       {:error, message, column} ->
         raise ParseError, file: state.file, line: line, column: column, description: message
@@ -549,17 +549,41 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
     )
   end
 
-  defp handle_attr_value_quote(<<delim, rest::binary>>, delim, line, column, buffer, acc, state) do
+  defp handle_attr_value_quote(
+         <<delim, rest::binary>>,
+         delim,
+         {line, offset},
+         column,
+         buffer,
+         acc,
+         state
+       ) do
     value = buffer_to_string(buffer)
     acc = put_attr_value(acc, {:string, value, %{delimiter: delim}})
-    handle_maybe_tag_open_end(rest, line, column + 1, acc, state)
+    handle_maybe_tag_open_end(rest, {line, offset}, column + 1, acc, state)
   end
 
-  defp handle_attr_value_quote(<<c::utf8, rest::binary>>, delim, line, column, buffer, acc, state) do
-    handle_attr_value_quote(rest, delim, line, column + 1, [char_or_bin(c) | buffer], acc, state)
+  defp handle_attr_value_quote(
+         <<c::utf8, rest::binary>>,
+         delim,
+         {line, offset},
+         column,
+         buffer,
+         acc,
+         state
+       ) do
+    handle_attr_value_quote(
+      rest,
+      delim,
+      {line, offset},
+      column + 1,
+      [char_or_bin(c) | buffer],
+      acc,
+      state
+    )
   end
 
-  defp handle_attr_value_quote(<<>>, delim, line, column, _buffer, _acc, state) do
+  defp handle_attr_value_quote(<<>>, delim, {line, _offset}, column, _buffer, _acc, state) do
     message = """
     expected closing `#{<<delim>>}` for attribute value
 
