@@ -59,70 +59,98 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
     state = %{file: file, column_offset: indentation + 1, braces: [], context: []}
 
     case cont do
-      :text -> handle_text(text, line, column, [], tokens, state)
-      :style -> handle_style(text, line, column, [], tokens, state)
-      :script -> handle_script(text, line, column, [], tokens, state)
+      :text -> handle_text(text, {line, -column}, column, [], tokens, state)
+      :style -> handle_style(text, {line, -column}, column, [], tokens, state)
+      :script -> handle_script(text, {line, -column}, column, [], tokens, state)
       {:comment, _, _} -> handle_comment(text, line, column, [], tokens, state)
     end
   end
 
   ## handle_text
 
-  defp handle_text("\r\n" <> rest, line, _column, buffer, acc, state) do
-    handle_text(rest, line + 1, state.column_offset, ["\r\n" | buffer], acc, state)
+  defp handle_text("\r\n" <> rest, {line, offset}, column, buffer, acc, state) do
+    handle_text(
+      rest,
+      {line + 1, offset + column - state.column_offset + 2},
+      state.column_offset,
+      ["\r\n" | buffer],
+      acc,
+      state
+    )
   end
 
-  defp handle_text("\n" <> rest, line, _column, buffer, acc, state) do
-    handle_text(rest, line + 1, state.column_offset, ["\n" | buffer], acc, state)
+  defp handle_text("\n" <> rest, {line, offset}, column, buffer, acc, state) do
+    handle_text(
+      rest,
+      {line + 1, offset + column - state.column_offset + 2},
+      state.column_offset,
+      ["\n" | buffer],
+      acc,
+      state
+    )
   end
 
-  defp handle_text("<!doctype" <> rest, line, column, buffer, acc, state) do
-    handle_doctype(rest, line, column + 9, ["<!doctype" | buffer], acc, state)
+  defp handle_text("<!doctype" <> rest, {line, offset}, column, buffer, acc, state) do
+    handle_doctype(rest, {line, offset}, column + 9, ["<!doctype" | buffer], acc, state)
   end
 
-  defp handle_text("<!DOCTYPE" <> rest, line, column, buffer, acc, state) do
-    handle_doctype(rest, line, column + 9, ["<!DOCTYPE" | buffer], acc, state)
+  defp handle_text("<!DOCTYPE" <> rest, {line, offset}, column, buffer, acc, state) do
+    handle_doctype(rest, {line, offset}, column + 9, ["<!DOCTYPE" | buffer], acc, state)
   end
 
-  defp handle_text("<!--" <> rest, line, column, buffer, acc, state) do
+  defp handle_text("<!--" <> rest, {line, offset}, column, buffer, acc, state) do
     state = update_in(state.context, &[:comment_start | &1])
-    handle_comment(rest, line, column + 4, ["<!--" | buffer], acc, state)
+    handle_comment(rest, {line, offset}, column + 4, ["<!--" | buffer], acc, state)
   end
 
-  defp handle_text("</" <> rest, line, column, buffer, acc, state) do
+  defp handle_text("</" <> rest, {line, offset}, column, buffer, acc, state) do
     text_to_acc = text_to_acc(buffer, acc, line, column, state.context)
-    handle_tag_close(rest, line, column + 2, text_to_acc, %{state | context: []})
+    handle_tag_close(rest, {line, offset}, column + 2, text_to_acc, %{state | context: []})
   end
 
-  defp handle_text("<" <> rest, line, column, buffer, acc, state) do
+  defp handle_text("<" <> rest, {line, _offset}, column, buffer, acc, state) do
     text_to_acc = text_to_acc(buffer, acc, line, column, state.context)
     handle_tag_open(rest, line, column + 1, text_to_acc, %{state | context: []})
   end
 
-  defp handle_text(<<c::utf8, rest::binary>>, line, column, buffer, acc, state) do
-    handle_text(rest, line, column + 1, [char_or_bin(c) | buffer], acc, state)
+  defp handle_text(<<c::utf8, rest::binary>>, {line, offset}, column, buffer, acc, state) do
+    handle_text(rest, {line, offset}, column + 1, [char_or_bin(c) | buffer], acc, state)
   end
 
-  defp handle_text(<<>>, line, column, buffer, acc, state) do
-    ok(text_to_acc(buffer, acc, line, column, state.context), :text)
+  defp handle_text(<<>>, {line, offset}, column, buffer, acc, state) do
+    ok(text_to_acc(buffer, acc, {line, offset}, column, state.context), :text)
   end
 
   ## handle_doctype
 
-  defp handle_doctype(<<?>, rest::binary>>, line, column, buffer, acc, state) do
-    handle_text(rest, line, column + 1, [?> | buffer], acc, state)
+  defp handle_doctype(<<?>, rest::binary>>, {line, offset}, column, buffer, acc, state) do
+    handle_text(rest, {line, offset}, column + 1, [?> | buffer], acc, state)
   end
 
-  defp handle_doctype("\r\n" <> rest, line, _column, buffer, acc, state) do
-    handle_doctype(rest, line + 1, state.column_offset, ["\r\n" | buffer], acc, state)
+  defp handle_doctype("\r\n" <> rest, {line, offset}, column, buffer, acc, state) do
+    handle_doctype(
+      rest,
+      {line + 1, offset + column - state.column_offset + 2},
+      state.column_offset,
+      ["\r\n" | buffer],
+      acc,
+      state
+    )
   end
 
-  defp handle_doctype("\n" <> rest, line, _column, buffer, acc, state) do
-    handle_doctype(rest, line + 1, state.column_offset, ["\n" | buffer], acc, state)
+  defp handle_doctype("\n" <> rest, {line, offset}, column, buffer, acc, state) do
+    handle_doctype(
+      rest,
+      {line + 1, offset + column - state.column_offset + 2},
+      state.column_offset,
+      ["\n" | buffer],
+      acc,
+      state
+    )
   end
 
-  defp handle_doctype(<<c::utf8, rest::binary>>, line, column, buffer, acc, state) do
-    handle_doctype(rest, line, column + 1, [char_or_bin(c) | buffer], acc, state)
+  defp handle_doctype(<<c::utf8, rest::binary>>, {line, offset}, column, buffer, acc, state) do
+    handle_doctype(rest, {line, offset}, column + 1, [char_or_bin(c) | buffer], acc, state)
   end
 
   ## handle_script
@@ -136,47 +164,75 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
     handle_text(rest, line, column + 9, [], acc, state)
   end
 
-  defp handle_script("\r\n" <> rest, line, _column, buffer, acc, state) do
-    handle_script(rest, line + 1, state.column_offset, ["\r\n" | buffer], acc, state)
+  defp handle_script("\r\n" <> rest, {line, offset}, column, buffer, acc, state) do
+    handle_script(
+      rest,
+      {line + 1, offset + column - state.column_offset + 2},
+      state.column_offset,
+      ["\r\n" | buffer],
+      acc,
+      state
+    )
   end
 
-  defp handle_script("\n" <> rest, line, _column, buffer, acc, state) do
-    handle_script(rest, line + 1, state.column_offset, ["\n" | buffer], acc, state)
+  defp handle_script("\n" <> rest, {line, offset}, column, buffer, acc, state) do
+    handle_script(
+      rest,
+      {line + 1, offset + column - state.column_offset + 2},
+      state.column_offset,
+      ["\n" | buffer],
+      acc,
+      state
+    )
   end
 
-  defp handle_script(<<c::utf8, rest::binary>>, line, column, buffer, acc, state) do
-    handle_script(rest, line, column + 1, [char_or_bin(c) | buffer], acc, state)
+  defp handle_script(<<c::utf8, rest::binary>>, {line, offset}, column, buffer, acc, state) do
+    handle_script(rest, {line, offset}, column + 1, [char_or_bin(c) | buffer], acc, state)
   end
 
-  defp handle_script(<<>>, line, column, buffer, acc, _state) do
-    ok(text_to_acc(buffer, acc, line, column, []), :script)
+  defp handle_script(<<>>, {line, offset}, column, buffer, acc, _state) do
+    ok(text_to_acc(buffer, acc, {line, offset}, column, []), :script)
   end
 
   ## handle_style
 
-  defp handle_style("</style>" <> rest, line, column, buffer, acc, state) do
+  defp handle_style("</style>" <> rest, {line, offset}, column, buffer, acc, state) do
     acc = [
       {:tag_close, "style", %{line: line, column: column}}
       | text_to_acc(buffer, acc, line, column, [])
     ]
 
-    handle_text(rest, line, column + 9, [], acc, state)
+    handle_text(rest, {line, offset}, column + 9, [], acc, state)
   end
 
-  defp handle_style("\r\n" <> rest, line, _column, buffer, acc, state) do
-    handle_style(rest, line + 1, state.column_offset, ["\r\n" | buffer], acc, state)
+  defp handle_style("\r\n" <> rest, {line, offset}, column, buffer, acc, state) do
+    handle_style(
+      rest,
+      {line + 1, offset + column - state.column_offset + 2},
+      state.column_offset,
+      ["\r\n" | buffer],
+      acc,
+      state
+    )
   end
 
-  defp handle_style("\n" <> rest, line, _column, buffer, acc, state) do
-    handle_style(rest, line + 1, state.column_offset, ["\n" | buffer], acc, state)
+  defp handle_style("\n" <> rest, {line, offset}, column, buffer, acc, state) do
+    handle_style(
+      rest,
+      {line + 1, offset + column - state.column_offset + 2},
+      state.column_offset,
+      ["\n" | buffer],
+      acc,
+      state
+    )
   end
 
-  defp handle_style(<<c::utf8, rest::binary>>, line, column, buffer, acc, state) do
-    handle_style(rest, line, column + 1, [char_or_bin(c) | buffer], acc, state)
+  defp handle_style(<<c::utf8, rest::binary>>, {line, offset}, column, buffer, acc, state) do
+    handle_style(rest, {line, offset}, column + 1, [char_or_bin(c) | buffer], acc, state)
   end
 
-  defp handle_style(<<>>, line, column, buffer, acc, _state) do
-    ok(text_to_acc(buffer, acc, line, column, []), :style)
+  defp handle_style(<<>>, {line, offset}, column, buffer, acc, _state) do
+    ok(text_to_acc(buffer, acc, {line, offset}, column, []), :style)
   end
 
   ## handle_comment
@@ -257,12 +313,24 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
 
   ## handle_maybe_tag_open_end
 
-  defp handle_maybe_tag_open_end("\r\n" <> rest, line, _column, acc, state) do
-    handle_maybe_tag_open_end(rest, line + 1, state.column_offset, acc, state)
+  defp handle_maybe_tag_open_end("\r\n" <> rest, {line, offset}, column, acc, state) do
+    handle_maybe_tag_open_end(
+      rest,
+      {line + 1, offset + column - state.column_offset + 2},
+      state.column_offset,
+      acc,
+      state
+    )
   end
 
-  defp handle_maybe_tag_open_end("\n" <> rest, line, _column, acc, state) do
-    handle_maybe_tag_open_end(rest, line + 1, state.column_offset, acc, state)
+  defp handle_maybe_tag_open_end("\n" <> rest, {line, offset}, column, acc, state) do
+    handle_maybe_tag_open_end(
+      rest,
+      {line + 1, offset + column - state.column_offset + 2},
+      state.column_offset,
+      acc,
+      state
+    )
   end
 
   defp handle_maybe_tag_open_end(<<c::utf8, rest::binary>>, line, column, acc, state)
@@ -375,55 +443,79 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
 
   ## handle_maybe_attr_value
 
-  defp handle_maybe_attr_value("\r\n" <> rest, line, _column, acc, state) do
-    handle_maybe_attr_value(rest, line + 1, state.column_offset, acc, state)
+  defp handle_maybe_attr_value("\r\n" <> rest, {line, offset}, column, acc, state) do
+    handle_maybe_attr_value(
+      rest,
+      {line + 1, offset + column - state.column_offset + 2},
+      state.column_offset,
+      acc,
+      state
+    )
   end
 
-  defp handle_maybe_attr_value("\n" <> rest, line, _column, acc, state) do
-    handle_maybe_attr_value(rest, line + 1, state.column_offset, acc, state)
+  defp handle_maybe_attr_value("\n" <> rest, {line, offset}, column, acc, state) do
+    handle_maybe_attr_value(
+      rest,
+      {line + 1, offset + column - state.column_offset + 2},
+      state.column_offset,
+      acc,
+      state
+    )
   end
 
-  defp handle_maybe_attr_value(<<c::utf8, rest::binary>>, line, column, acc, state)
+  defp handle_maybe_attr_value(<<c::utf8, rest::binary>>, {line, offset}, column, acc, state)
        when c in @space_chars do
-    handle_maybe_attr_value(rest, line, column + 1, acc, state)
+    handle_maybe_attr_value(rest, {line, offset}, column + 1, acc, state)
   end
 
-  defp handle_maybe_attr_value("=" <> rest, line, column, acc, state) do
-    handle_attr_value_begin(rest, line, column + 1, acc, state)
+  defp handle_maybe_attr_value("=" <> rest, {line, offset}, column, acc, state) do
+    handle_attr_value_begin(rest, {line, offset}, column + 1, acc, state)
   end
 
-  defp handle_maybe_attr_value(text, line, column, acc, state) do
-    handle_maybe_tag_open_end(text, line, column, acc, state)
+  defp handle_maybe_attr_value(text, {line, offset}, column, acc, state) do
+    handle_maybe_tag_open_end(text, {line, offset}, column, acc, state)
   end
 
   ## handle_attr_value_begin
 
-  defp handle_attr_value_begin("\r\n" <> rest, line, _column, acc, state) do
-    handle_attr_value_begin(rest, line + 1, state.column_offset, acc, state)
+  defp handle_attr_value_begin("\r\n" <> rest, {line, offset}, column, acc, state) do
+    handle_attr_value_begin(
+      rest,
+      {line + 1, offset + column - state.column_offset + 2},
+      state.column_offset,
+      acc,
+      state
+    )
   end
 
-  defp handle_attr_value_begin("\n" <> rest, line, _column, acc, state) do
-    handle_attr_value_begin(rest, line + 1, state.column_offset, acc, state)
+  defp handle_attr_value_begin("\n" <> rest, {line, offset}, column, acc, state) do
+    handle_attr_value_begin(
+      rest,
+      {line + 1, offset + column - state.column_offset + 2},
+      state.column_offset,
+      acc,
+      state
+    )
   end
 
-  defp handle_attr_value_begin(<<c::utf8, rest::binary>>, line, column, acc, state)
+  defp handle_attr_value_begin(<<c::utf8, rest::binary>>, {line, offset}, column, acc, state)
        when c in @space_chars do
-    handle_attr_value_begin(rest, line, column + 1, acc, state)
+    handle_attr_value_begin(rest, {line, offset}, column + 1, acc, state)
   end
 
-  defp handle_attr_value_begin("\"" <> rest, line, column, acc, state) do
-    handle_attr_value_quote(rest, ?", line, column + 1, [], acc, state)
+  defp handle_attr_value_begin("\"" <> rest, {line, offset}, column, acc, state) do
+    handle_attr_value_quote(rest, ?", {line, offset}, column + 1, [], acc, state)
   end
 
-  defp handle_attr_value_begin("'" <> rest, line, column, acc, state) do
-    handle_attr_value_quote(rest, ?', line, column + 1, [], acc, state)
+  defp handle_attr_value_begin("'" <> rest, {line, offset}, column, acc, state) do
+    handle_attr_value_quote(rest, ?', {line, offset}, column + 1, [], acc, state)
   end
 
-  defp handle_attr_value_begin("{" <> rest, line, column, acc, state) do
-    handle_attr_value_as_expr(rest, line, column + 1, acc, state)
+  defp handle_attr_value_begin("{" <> rest, {line, offset}, column, acc, state) do
+    handle_attr_value_as_expr(rest, {line, offset}, column + 1, acc, state)
   end
 
-  defp handle_attr_value_begin(_text, line, column, _acc, state) do
+  defp handle_attr_value_begin(_text, {line, _offset}, column, _acc, state) do
     message =
       "invalid attribute value after `=`. Expected either a value between quotes " <>
         "(such as \"value\" or \'value\') or an Elixir expression between curly brackets (such as `{expr}`)"
@@ -433,14 +525,28 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
 
   ## handle_attr_value_quote
 
-  defp handle_attr_value_quote("\r\n" <> rest, delim, line, _column, buffer, acc, state) do
-    column = state.column_offset
-    handle_attr_value_quote(rest, delim, line + 1, column, ["\r\n" | buffer], acc, state)
+  defp handle_attr_value_quote("\r\n" <> rest, delim, {line, offset}, column, buffer, acc, state) do
+    handle_attr_value_quote(
+      rest,
+      delim,
+      {line + 1, offset + column - state.column_offset + 2},
+      state.column_offset,
+      ["\r\n" | buffer],
+      acc,
+      state
+    )
   end
 
-  defp handle_attr_value_quote("\n" <> rest, delim, line, _column, buffer, acc, state) do
-    column = state.column_offset
-    handle_attr_value_quote(rest, delim, line + 1, column, ["\n" | buffer], acc, state)
+  defp handle_attr_value_quote("\n" <> rest, delim, {line, offset}, column, buffer, acc, state) do
+    handle_attr_value_quote(
+      rest,
+      delim,
+      {line + 1, offset + column - state.column_offset + 2},
+      state.column_offset,
+      ["\n" | buffer],
+      acc,
+      state
+    )
   end
 
   defp handle_attr_value_quote(<<delim, rest::binary>>, delim, line, column, buffer, acc, state) do
@@ -490,15 +596,27 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
 
   ## handle_interpolation
 
-  defp handle_interpolation("\r\n" <> rest, line, _column, buffer, state) do
-    handle_interpolation(rest, line + 1, state.column_offset, ["\r\n" | buffer], state)
+  defp handle_interpolation("\r\n" <> rest, {line, offset}, column, buffer, state) do
+    handle_interpolation(
+      rest,
+      {line + 1, offset + column - state.column_offset + 2},
+      state.column_offset,
+      ["\r\n" | buffer],
+      state
+    )
   end
 
-  defp handle_interpolation("\n" <> rest, line, _column, buffer, state) do
-    handle_interpolation(rest, line + 1, state.column_offset, ["\n" | buffer], state)
+  defp handle_interpolation("\n" <> rest, {line, offset}, column, buffer, state) do
+    handle_interpolation(
+      rest,
+      {line + 1, offset + column - state.column_offset + 2},
+      state.column_offset,
+      ["\n" | buffer],
+      state
+    )
   end
 
-  defp handle_interpolation("}" <> rest, line, column, buffer, %{braces: []} = state) do
+  defp handle_interpolation("}" <> rest, line, {column, _offset}, buffer, %{braces: []} = state) do
     value = buffer_to_string(buffer)
     {:ok, value, line, column + 1, rest, state}
   end
