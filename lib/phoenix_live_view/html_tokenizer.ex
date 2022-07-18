@@ -104,12 +104,12 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
   end
 
   defp handle_text("</" <> rest, {line, offset}, column, buffer, acc, state) do
-    text_to_acc = text_to_acc(buffer, acc, line, column, state.context)
+    text_to_acc = text_to_acc(buffer, acc, {line, offset}, column, state.context)
     handle_tag_close(rest, {line, offset}, column + 2, text_to_acc, %{state | context: []})
   end
 
   defp handle_text("<" <> rest, {line, offset}, column, buffer, acc, state) do
-    text_to_acc = text_to_acc(buffer, acc, line, column, state.context)
+    text_to_acc = text_to_acc(buffer, acc, {line, offset}, column, state.context)
     handle_tag_open(rest, {line, offset}, column + 1, text_to_acc, %{state | context: []})
   end
 
@@ -117,8 +117,8 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
     handle_text(rest, {line, offset}, column + 1, [char_or_bin(c) | buffer], acc, state)
   end
 
-  defp handle_text(<<>>, {line, _offset}, column, buffer, acc, state) do
-    ok(text_to_acc(buffer, acc, line, column, state.context), :text)
+  defp handle_text(<<>>, {line, offset}, column, buffer, acc, state) do
+    ok(text_to_acc(buffer, acc, {line, offset}, column, state.context), :text)
   end
 
   ## handle_doctype
@@ -158,7 +158,7 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
   defp handle_script("</script>" <> rest, {line, offset}, column, buffer, acc, state) do
     acc = [
       {:tag_close, "script", %{line: line, column: column}}
-      | text_to_acc(buffer, acc, line, column, [])
+      | text_to_acc(buffer, acc, {line, offset}, column, [])
     ]
 
     handle_text(rest, {line, offset}, column + 9, [], acc, state)
@@ -190,8 +190,8 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
     handle_script(rest, {line, offset}, column + 1, [char_or_bin(c) | buffer], acc, state)
   end
 
-  defp handle_script(<<>>, {line, _offset}, column, buffer, acc, _state) do
-    ok(text_to_acc(buffer, acc, line, column, []), :script)
+  defp handle_script(<<>>, {line, offset}, column, buffer, acc, _state) do
+    ok(text_to_acc(buffer, acc, {line, offset}, column, []), :script)
   end
 
   ## handle_style
@@ -199,7 +199,7 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
   defp handle_style("</style>" <> rest, {line, offset}, column, buffer, acc, state) do
     acc = [
       {:tag_close, "style", %{line: line, column: column}}
-      | text_to_acc(buffer, acc, line, column, [])
+      | text_to_acc(buffer, acc, {line, offset}, column, [])
     ]
 
     handle_text(rest, {line, offset}, column + 9, [], acc, state)
@@ -256,7 +256,7 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
   end
 
   defp handle_comment(<<>>, line, column, buffer, acc, state) do
-    ok(text_to_acc(buffer, acc, line, column, state.context), {:comment, line, column})
+    ok(text_to_acc(buffer, acc, {line, 0}, column, state.context), {:comment, line, column})
   end
 
   ## handle_tag_open
@@ -672,13 +672,13 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
     IO.iodata_to_binary(Enum.reverse(buffer))
   end
 
-  defp text_to_acc(buffer, acc, line, column, context)
+  defp text_to_acc(buffer, acc, line_offset, column, context)
 
-  defp text_to_acc([], acc, _line, _column, _context),
+  defp text_to_acc([], acc, _line_offset, _column, _context),
     do: acc
 
-  defp text_to_acc(buffer, acc, line, column, context) do
-    meta = %{line_end: line, column_end: column}
+  defp text_to_acc(buffer, acc, {line, offset}, column, context) do
+    meta = %{line_end: line, column_end: column, offset: offset}
 
     meta =
       if context = get_context(context) do
