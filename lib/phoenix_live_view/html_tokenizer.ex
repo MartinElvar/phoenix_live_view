@@ -141,7 +141,7 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
   defp handle_doctype("\n" <> rest, {line, offset}, column, buffer, acc, state) do
     handle_doctype(
       rest,
-      {line + 1, offset + column - state.column_offset + 2},
+      {line + 1, offset + column - state.column_offset + 1},
       state.column_offset,
       ["\n" | buffer],
       acc,
@@ -178,7 +178,7 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
   defp handle_script("\n" <> rest, {line, offset}, column, buffer, acc, state) do
     handle_script(
       rest,
-      {line + 1, offset + column - state.column_offset + 2},
+      {line + 1, offset + column - state.column_offset + 1},
       state.column_offset,
       ["\n" | buffer],
       acc,
@@ -219,7 +219,7 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
   defp handle_style("\n" <> rest, {line, offset}, column, buffer, acc, state) do
     handle_style(
       rest,
-      {line + 1, offset + column - state.column_offset + 2},
+      {line + 1, offset + column - state.column_offset + 1},
       state.column_offset,
       ["\n" | buffer],
       acc,
@@ -326,7 +326,7 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
   defp handle_maybe_tag_open_end("\n" <> rest, {line, offset}, column, acc, state) do
     handle_maybe_tag_open_end(
       rest,
-      {line + 1, offset + column - state.column_offset + 2},
+      {line + 1, offset + column - state.column_offset + 1},
       state.column_offset,
       acc,
       state
@@ -456,7 +456,7 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
   defp handle_maybe_attr_value("\n" <> rest, {line, offset}, column, acc, state) do
     handle_maybe_attr_value(
       rest,
-      {line + 1, offset + column - state.column_offset + 2},
+      {line + 1, offset + column - state.column_offset + 1},
       state.column_offset,
       acc,
       state
@@ -491,7 +491,7 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
   defp handle_attr_value_begin("\n" <> rest, {line, offset}, column, acc, state) do
     handle_attr_value_begin(
       rest,
-      {line + 1, offset + column - state.column_offset + 2},
+      {line + 1, offset + column - state.column_offset + 1},
       state.column_offset,
       acc,
       state
@@ -541,7 +541,7 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
     handle_attr_value_quote(
       rest,
       delim,
-      {line + 1, offset + column - state.column_offset + 2},
+      {line + 1, offset + column - state.column_offset + 1},
       state.column_offset,
       ["\n" | buffer],
       acc,
