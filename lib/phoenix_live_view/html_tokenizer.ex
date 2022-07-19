@@ -82,7 +82,7 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
   defp handle_text("\n" <> rest, {line, offset}, column, buffer, acc, state) do
     handle_text(
       rest,
-      {line + 1, offset + column - state.column_offset + 2},
+      {line + 1, offset + column - state.column_offset + 1},
       state.column_offset,
       ["\n" | buffer],
       acc,
