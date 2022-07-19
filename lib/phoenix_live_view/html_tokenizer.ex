@@ -62,7 +62,7 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
       :text -> handle_text(text, {line, -column}, column, [], tokens, state)
       :style -> handle_style(text, {line, -column}, column, [], tokens, state)
       :script -> handle_script(text, {line, -column}, column, [], tokens, state)
-      {:comment, _, _} -> handle_comment(text, line, column, [], tokens, state)
+      {:comment, _, _} -> handle_comment(text, {line, -column}, column, [], tokens, state)
     end
   end
 
@@ -90,41 +90,41 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
     )
   end
 
-  defp handle_text("<!doctype" <> rest, {line, offset}, column, buffer, acc, state) do
-    handle_doctype(rest, {line, offset}, column + 9, ["<!doctype" | buffer], acc, state)
+  defp handle_text("<!doctype" <> rest, line_offset, column, buffer, acc, state) do
+    handle_doctype(rest, line_offset, column + 9, ["<!doctype" | buffer], acc, state)
   end
 
-  defp handle_text("<!DOCTYPE" <> rest, {line, offset}, column, buffer, acc, state) do
-    handle_doctype(rest, {line, offset}, column + 9, ["<!DOCTYPE" | buffer], acc, state)
+  defp handle_text("<!DOCTYPE" <> rest, line_offset, column, buffer, acc, state) do
+    handle_doctype(rest, line_offset, column + 9, ["<!DOCTYPE" | buffer], acc, state)
   end
 
-  defp handle_text("<!--" <> rest, {line, _offset}, column, buffer, acc, state) do
+  defp handle_text("<!--" <> rest, line_offset, column, buffer, acc, state) do
     state = update_in(state.context, &[:comment_start | &1])
-    handle_comment(rest, line, column + 4, ["<!--" | buffer], acc, state)
+    handle_comment(rest, line_offset, column + 4, ["<!--" | buffer], acc, state)
   end
 
-  defp handle_text("</" <> rest, {line, offset}, column, buffer, acc, state) do
-    text_to_acc = text_to_acc(buffer, acc, {line, offset}, column, state.context)
-    handle_tag_close(rest, {line, offset}, column + 2, text_to_acc, %{state | context: []})
+  defp handle_text("</" <> rest, line_offset, column, buffer, acc, state) do
+    text_to_acc = text_to_acc(buffer, acc, line_offset, column, state.context)
+    handle_tag_close(rest, line_offset, column + 2, text_to_acc, %{state | context: []})
   end
 
-  defp handle_text("<" <> rest, {line, offset}, column, buffer, acc, state) do
-    text_to_acc = text_to_acc(buffer, acc, {line, offset}, column, state.context)
-    handle_tag_open(rest, {line, offset}, column + 1, text_to_acc, %{state | context: []})
+  defp handle_text("<" <> rest, line_offset, column, buffer, acc, state) do
+    text_to_acc = text_to_acc(buffer, acc, line_offset, column, state.context)
+    handle_tag_open(rest, line_offset, column + 1, text_to_acc, %{state | context: []})
   end
 
-  defp handle_text(<<c::utf8, rest::binary>>, {line, offset}, column, buffer, acc, state) do
-    handle_text(rest, {line, offset}, column + 1, [char_or_bin(c) | buffer], acc, state)
+  defp handle_text(<<c::utf8, rest::binary>>, line_offset, column, buffer, acc, state) do
+    handle_text(rest, line_offset, column + 1, [char_or_bin(c) | buffer], acc, state)
   end
 
-  defp handle_text(<<>>, {line, offset}, column, buffer, acc, state) do
-    ok(text_to_acc(buffer, acc, {line, offset}, column, state.context), :text)
+  defp handle_text(<<>>, line_offset, column, buffer, acc, state) do
+    ok(text_to_acc(buffer, acc, line_offset, column, state.context), :text)
   end
 
   ## handle_doctype
 
-  defp handle_doctype(<<?>, rest::binary>>, {line, offset}, column, buffer, acc, state) do
-    handle_text(rest, {line, offset}, column + 1, [?> | buffer], acc, state)
+  defp handle_doctype(<<?>, rest::binary>>, line_offset, column, buffer, acc, state) do
+    handle_text(rest, line_offset, column + 1, [?> | buffer], acc, state)
   end
 
   defp handle_doctype("\r\n" <> rest, {line, offset}, column, buffer, acc, state) do
@@ -149,8 +149,8 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
     )
   end
 
-  defp handle_doctype(<<c::utf8, rest::binary>>, {line, offset}, column, buffer, acc, state) do
-    handle_doctype(rest, {line, offset}, column + 1, [char_or_bin(c) | buffer], acc, state)
+  defp handle_doctype(<<c::utf8, rest::binary>>, line_offset, column, buffer, acc, state) do
+    handle_doctype(rest, line_offset, column + 1, [char_or_bin(c) | buffer], acc, state)
   end
 
   ## handle_script
@@ -186,12 +186,12 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
     )
   end
 
-  defp handle_script(<<c::utf8, rest::binary>>, {line, offset}, column, buffer, acc, state) do
-    handle_script(rest, {line, offset}, column + 1, [char_or_bin(c) | buffer], acc, state)
+  defp handle_script(<<c::utf8, rest::binary>>, line_offset, column, buffer, acc, state) do
+    handle_script(rest, line_offset, column + 1, [char_or_bin(c) | buffer], acc, state)
   end
 
-  defp handle_script(<<>>, {line, offset}, column, buffer, acc, _state) do
-    ok(text_to_acc(buffer, acc, {line, offset}, column, []), :script)
+  defp handle_script(<<>>, line_offset, column, buffer, acc, _state) do
+    ok(text_to_acc(buffer, acc, line_offset, column, []), :script)
   end
 
   ## handle_style
@@ -227,36 +227,35 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
     )
   end
 
-  defp handle_style(<<c::utf8, rest::binary>>, {line, offset}, column, buffer, acc, state) do
-    handle_style(rest, {line, offset}, column + 1, [char_or_bin(c) | buffer], acc, state)
+  defp handle_style(<<c::utf8, rest::binary>>, line_offset, column, buffer, acc, state) do
+    handle_style(rest, line_offset, column + 1, [char_or_bin(c) | buffer], acc, state)
   end
 
-  defp handle_style(<<>>, {line, offset}, column, buffer, acc, _state) do
-    ok(text_to_acc(buffer, acc, {line, offset}, column, []), :style)
+  defp handle_style(<<>>, line_offset, column, buffer, acc, _state) do
+    ok(text_to_acc(buffer, acc, line_offset, column, []), :style)
   end
 
   ## handle_comment
 
-  defp handle_comment("\r\n" <> rest, line, _column, buffer, acc, state) do
-    handle_comment(rest, line + 1, state.column_offset, ["\r\n" | buffer], acc, state)
+  defp handle_comment("\r\n" <> rest, {line, offset}, _column, buffer, acc, state) do
+    handle_comment(rest, {line + 1, offset}, state.column_offset, ["\r\n" | buffer], acc, state)
   end
 
-  defp handle_comment("\n" <> rest, line, _column, buffer, acc, state) do
-    handle_comment(rest, line + 1, state.column_offset, ["\n" | buffer], acc, state)
+  defp handle_comment("\n" <> rest, {line, offset}, _column, buffer, acc, state) do
+    handle_comment(rest, {line + 1, offset}, state.column_offset, ["\n" | buffer], acc, state)
   end
 
-  defp handle_comment("-->" <> rest, line, column, buffer, acc, state) do
+  defp handle_comment("-->" <> rest, line_offset, column, buffer, acc, state) do
     state = update_in(state.context, &[:comment_end | &1])
-    # TODO: should we receive the offset here too?
-    handle_text(rest, {line, 0}, column + 3, ["-->" | buffer], acc, state)
+    handle_text(rest, line_offset, column + 3, ["-->" | buffer], acc, state)
   end
 
-  defp handle_comment(<<c::utf8, rest::binary>>, line, column, buffer, acc, state) do
-    handle_comment(rest, line, column + 1, [char_or_bin(c) | buffer], acc, state)
+  defp handle_comment(<<c::utf8, rest::binary>>, line_offset, column, buffer, acc, state) do
+    handle_comment(rest, line_offset, column + 1, [char_or_bin(c) | buffer], acc, state)
   end
 
-  defp handle_comment(<<>>, line, column, buffer, acc, state) do
-    ok(text_to_acc(buffer, acc, {line, 0}, column, state.context), {:comment, line, column})
+  defp handle_comment(<<>>, {line, offset}, column, buffer, acc, state) do
+    ok(text_to_acc(buffer, acc, {line, offset}, column, state.context), {:comment, line, column})
   end
 
   ## handle_tag_open
@@ -334,31 +333,31 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
     )
   end
 
-  defp handle_maybe_tag_open_end(<<c::utf8, rest::binary>>, {line, offset}, column, acc, state)
+  defp handle_maybe_tag_open_end(<<c::utf8, rest::binary>>, line_offset, column, acc, state)
        when c in @space_chars do
-    handle_maybe_tag_open_end(rest, {line, offset}, column + 1, acc, state)
+    handle_maybe_tag_open_end(rest, line_offset, column + 1, acc, state)
   end
 
-  defp handle_maybe_tag_open_end("/>" <> rest, {line, offset}, column, acc, state) do
+  defp handle_maybe_tag_open_end("/>" <> rest, line_offset, column, acc, state) do
     acc = reverse_attrs(acc)
-    handle_text(rest, {line, offset}, column + 2, [], put_self_close(acc), state)
+    handle_text(rest, line_offset, column + 2, [], put_self_close(acc), state)
   end
 
-  defp handle_maybe_tag_open_end(">" <> rest, {line, offset}, column, acc, state) do
+  defp handle_maybe_tag_open_end(">" <> rest, line_offset, column, acc, state) do
     case reverse_attrs(acc) do
       [{:tag_open, "script", _, _} | _] = acc ->
-        handle_script(rest, {line, offset}, column + 1, [], acc, state)
+        handle_script(rest, line_offset, column + 1, [], acc, state)
 
       [{:tag_open, "style", _, _} | _] = acc ->
-        handle_style(rest, {line, offset}, column + 1, [], acc, state)
+        handle_style(rest, line_offset, column + 1, [], acc, state)
 
       acc ->
-        handle_text(rest, {line, offset}, column + 1, [], acc, state)
+        handle_text(rest, line_offset, column + 1, [], acc, state)
     end
   end
 
-  defp handle_maybe_tag_open_end("{" <> rest, {line, offset}, column, acc, state) do
-    handle_root_attribute(rest, {line, offset}, column + 1, acc, state)
+  defp handle_maybe_tag_open_end("{" <> rest, line_offset, column, acc, state) do
+    handle_root_attribute(rest, line_offset, column + 1, acc, state)
   end
 
   defp handle_maybe_tag_open_end(<<>>, {line, _offset}, column, _acc, state) do
@@ -390,8 +389,8 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
     raise ParseError, file: state.file, line: line, column: column, description: message
   end
 
-  defp handle_maybe_tag_open_end(text, {line, offset}, column, acc, state) do
-    handle_attribute(text, {line, offset}, column, acc, state)
+  defp handle_maybe_tag_open_end(text, line_offset, column, acc, state) do
+    handle_attribute(text, line_offset, column, acc, state)
   end
 
   ## handle_attribute
@@ -464,17 +463,17 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
     )
   end
 
-  defp handle_maybe_attr_value(<<c::utf8, rest::binary>>, {line, offset}, column, acc, state)
+  defp handle_maybe_attr_value(<<c::utf8, rest::binary>>, line_offset, column, acc, state)
        when c in @space_chars do
-    handle_maybe_attr_value(rest, {line, offset}, column + 1, acc, state)
+    handle_maybe_attr_value(rest, line_offset, column + 1, acc, state)
   end
 
-  defp handle_maybe_attr_value("=" <> rest, {line, offset}, column, acc, state) do
-    handle_attr_value_begin(rest, {line, offset}, column + 1, acc, state)
+  defp handle_maybe_attr_value("=" <> rest, line_offset, column, acc, state) do
+    handle_attr_value_begin(rest, line_offset, column + 1, acc, state)
   end
 
-  defp handle_maybe_attr_value(text, {line, offset}, column, acc, state) do
-    handle_maybe_tag_open_end(text, {line, offset}, column, acc, state)
+  defp handle_maybe_attr_value(text, line_offset, column, acc, state) do
+    handle_maybe_tag_open_end(text, line_offset, column, acc, state)
   end
 
   ## handle_attr_value_begin
@@ -499,21 +498,21 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
     )
   end
 
-  defp handle_attr_value_begin(<<c::utf8, rest::binary>>, {line, offset}, column, acc, state)
+  defp handle_attr_value_begin(<<c::utf8, rest::binary>>, line_offset, column, acc, state)
        when c in @space_chars do
-    handle_attr_value_begin(rest, {line, offset}, column + 1, acc, state)
+    handle_attr_value_begin(rest, line_offset, column + 1, acc, state)
   end
 
-  defp handle_attr_value_begin("\"" <> rest, {line, offset}, column, acc, state) do
-    handle_attr_value_quote(rest, ?", {line, offset}, column + 1, [], acc, state)
+  defp handle_attr_value_begin("\"" <> rest, line_offset, column, acc, state) do
+    handle_attr_value_quote(rest, ?", line_offset, column + 1, [], acc, state)
   end
 
-  defp handle_attr_value_begin("'" <> rest, {line, offset}, column, acc, state) do
-    handle_attr_value_quote(rest, ?', {line, offset}, column + 1, [], acc, state)
+  defp handle_attr_value_begin("'" <> rest, line_offset, column, acc, state) do
+    handle_attr_value_quote(rest, ?', line_offset, column + 1, [], acc, state)
   end
 
-  defp handle_attr_value_begin("{" <> rest, {line, offset}, column, acc, state) do
-    handle_attr_value_as_expr(rest, {line, offset}, column + 1, acc, state)
+  defp handle_attr_value_begin("{" <> rest, line_offset, column, acc, state) do
+    handle_attr_value_as_expr(rest, line_offset, column + 1, acc, state)
   end
 
   defp handle_attr_value_begin(_text, {line, _offset}, column, _acc, state) do
@@ -553,7 +552,7 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
   defp handle_attr_value_quote(
          <<delim, rest::binary>>,
          delim,
-         {line, offset},
+         line_offset,
          column,
          buffer,
          acc,
@@ -561,13 +560,13 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
        ) do
     value = buffer_to_string(buffer)
     acc = put_attr_value(acc, {:string, value, %{delimiter: delim}})
-    handle_maybe_tag_open_end(rest, {line, offset}, column + 1, acc, state)
+    handle_maybe_tag_open_end(rest, line_offset, column + 1, acc, state)
   end
 
   defp handle_attr_value_quote(
          <<c::utf8, rest::binary>>,
          delim,
-         {line, offset},
+         line_offset,
          column,
          buffer,
          acc,
@@ -576,7 +575,7 @@ defmodule Phoenix.LiveView.HTMLTokenizer do
     handle_attr_value_quote(
       rest,
       delim,
-      {line, offset},
+      line_offset,
       column + 1,
       [char_or_bin(c) | buffer],
       acc,
