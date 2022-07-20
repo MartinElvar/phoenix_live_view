@@ -206,17 +206,26 @@ export default class View {
       return this.liveSocket.owner(phxTarget, view => callback(view, phxTarget))
     }
 
-    if(isCid(phxTarget)){
-      let targets = DOM.findComponentNodeList(this.el, phxTarget)
-      if(targets.length === 0){
-        logError(`no component found matching phx-target of ${phxTarget}`)
-      } else {
-        callback(this, parseInt(phxTarget))
-      }
+    if(isCid(phxTarget) && Array.isArray(phxTarget)){
+      phxTarget.forEach((target) => {
+        withinComponentTargets(target, callback)
+      })
+    } else if(isCid(phxTarget)){
+      withinComponentTargets(phxTarget, callback)
     } else {
       let targets = Array.from(document.querySelectorAll(phxTarget))
       if(targets.length === 0){ logError(`nothing found matching the phx-target selector "${phxTarget}"`) }
       targets.forEach(target => this.liveSocket.owner(target, view => callback(view, target)))
+    }
+  }
+
+  withinComponentTargers(phxTarget, callback){
+    let targets = DOM.findComponentNodeList(this.el, phxTarget)
+
+    if(targets.length === 0){
+      logError(`no component found matching phx-target of ${phxTarget}`)
+    } else {
+      callback(this, parseInt(phxTarget))
     }
   }
 

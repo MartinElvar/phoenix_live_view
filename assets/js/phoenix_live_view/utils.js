@@ -7,7 +7,16 @@ import EntryUploader from "./entry_uploader"
 export let logError = (msg, obj) => console.error && console.error(msg, obj)
 
 export let isCid = (cid) => {
+  if (Array.isArray(cid)) {
+    return cid.every((uncheckedCid) => checkCid(uncheckedCid))
+  }
+
+  return checkCid(cid)
+}
+
+export let checkCid = (cid) => {
   let type = typeof(cid)
+
   return type === "number" || (type === "string" && /^(0|[1-9]\d*)$/.test(cid))
 }
 
